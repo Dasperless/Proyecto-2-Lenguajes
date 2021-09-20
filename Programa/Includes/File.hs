@@ -22,7 +22,7 @@ dataMatrixAux :: [[Char]] -> [[[Char]]] -> [[[Char]]]
 dataMatrixAux list newList = do
   if null list
     then newList
-    else dataMatrixAux (tail list) newList ++ [wordsWhen (== ',') (head list)]
+    else dataMatrixAux (init list) newList ++ [wordsWhen (== ',') (last list)]
 
 -- Convierte una lista de strings y las convierte en una matriz
 -- Recibe :
