@@ -1,5 +1,8 @@
-module File where
-import System.IO
+module Includes.File (
+  printFile,
+  writeCsv
+) where
+import System.IO ()
 import qualified Data.ByteString.Char8 as B
 
 -- Separa un string si es igual a un token
