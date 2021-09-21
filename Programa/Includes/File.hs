@@ -1,6 +1,6 @@
 module File where
-
 import System.IO
+import qualified Data.ByteString.Char8 as B
 
 -- Separa un string si es igual a un token
 -- Ejemplo:
@@ -41,3 +41,53 @@ getLines :: FilePath -> IO [String]
 getLines path = do
   str <- readFile path
   return (lines str)
+
+-- Imprime una lista 
+-- Recibe una lista de strings
+printRow :: [[Char]] -> IO ()
+printRow row = do
+  if null row
+    then putStr "\n"
+    else
+      do
+      putStr $ head row ++ "\t"
+      printRow (tail row)
+
+-- Imprime una matriz
+-- Recibe una matriz de strings
+printMatrix :: [[[Char]]] -> IO ()
+printMatrix matrix = 
+  if null matrix
+    then putStr ""
+  else
+    do
+    printRow (head matrix)
+    printMatrix (tail matrix)
+
+-- Imprime un archivo
+-- Recibe:
+--  path: la dirección de un archivo
+printFile :: FilePath -> IO ()
+printFile path = do
+  file <- getLines path
+  let dataFile = dataMatrix file
+  printMatrix dataFile
+
+-- Convierte una lista a un string
+-- Recibe:
+--  list: lista de string
+-- Retorna: string
+listToString :: [[Char]] -> [Char]
+listToString list 
+  | null list = return '\n'
+  | length list == 1 = head list++listToString (tail list)
+  | otherwise = head list++","++listToString (tail list)
+ 
+-- Añada una nueva linea a un archivo csv
+-- Recibe:
+--  path: la dirección del archivo
+--  newData: Una lista de strings a escribir en un csv
+writeCsv :: FilePath -> [[Char]] -> IO ()
+writeCsv path newData = do
+  let dataFileStr = listToString newData
+  appendFile path dataFileStr
