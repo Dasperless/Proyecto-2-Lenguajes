@@ -1,5 +1,7 @@
 module Includes.File (
   printFile,
+  fileToMatrix,
+  getFileLines,
   writeCsv
 ) where
 import System.IO ()
@@ -21,27 +23,27 @@ wordsWhen p s = case dropWhile p s of
 --  newList: una lista vacía
 -- Retorna:
 --  Una matriz de strings
-dataMatrixAux :: [[Char]] -> [[[Char]]] -> [[[Char]]]
-dataMatrixAux list newList = do
+fileToMatrixAux :: [[Char]] -> [[[Char]]] -> [[[Char]]]
+fileToMatrixAux list newList = do
   if null list
     then newList
-    else dataMatrixAux (init list) newList ++ [wordsWhen (== ',') (last list)]
+    else fileToMatrixAux (init list) newList ++ [wordsWhen (== ',') (last list)]
 
 -- Convierte una lista de strings y las convierte en una matriz
 -- Recibe :
 --  list: Una lista de tipo [[char]]
 -- Retorna:
 --  Una matris de tipo [[[char]]]
-dataMatrix :: [[Char]] -> [[[Char]]]
-dataMatrix list = do
+fileToMatrix :: [[Char]] -> [[[Char]]]
+fileToMatrix list = do
   if null list
     then [[]]
-    else dataMatrixAux list []
+    else fileToMatrixAux list []
 
 -- Crea una lista de las lineas de un archivo
 -- path: un string con la dirección del archivo
-getLines :: FilePath -> IO [String]
-getLines path = do
+getFileLines :: FilePath -> IO [String]
+getFileLines path = do
   str <- readFile path
   return (lines str)
 
@@ -72,8 +74,8 @@ printMatrix matrix =
 --  path: la dirección de un archivo
 printFile :: FilePath -> IO ()
 printFile path = do
-  file <- getLines path
-  let dataFile = dataMatrix file
+  file <- getFileLines path
+  let dataFile = fileToMatrix file
   printMatrix dataFile
 
 -- Convierte una lista a un string
