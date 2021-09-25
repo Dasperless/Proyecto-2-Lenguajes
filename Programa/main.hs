@@ -4,10 +4,11 @@ import qualified Includes.Date
 import System.Exit (exitSuccess)
 import Includes.File (printFile)
 import qualified Control.Monad
-import Includes.Date
-import Data.Maybe (isNothing, isJust)
+import Includes.Date ( validDate )
+import Data.Maybe (isNothing, isJust, fromJust)
 import Control.Monad (when, unless)
 import Text.Read (readMaybe)
+import Data.Time (UniversalTime)
 
 isInt :: String -> Bool
 isInt num = do
@@ -62,76 +63,135 @@ menuAdmin = do
 
     when (option /= "8") menuAdmin
 
+-- Obtiene una fecha por input y valida si es correcto el formato
+-- Retona un string con la fecha
+getDate :: IO String
+getDate = do
+    -- we define "loop" as a recursive IO action
+    let loop = do
+            putStrLn "Ingresa la fecha (dd-mm-yyy): "
+            putStr ">>"
+            entryDateStr <- getLine
+            let entryDate = validDate entryDateStr
+
+            if isNothing entryDate then
+                do
+                    putStrLn "[Error]: El formato de la fecha es incorrecto."
+                    loop
+            else return entryDateStr
+    loop  -- start the first iteration 
+
+-- Obtiene el rango de fecha de reservacion y los valida.
+-- Retorna una lista con las fechas de reservacion.
+getDateReservation :: IO [String]
+getDateReservation = do
+    let loop = do
+        entryDate <- getDate
+        departDate <- getDate
+
+        -- Verifica si la fecha inicial es mayor a la final
+        if entryDate > departDate then
+            do
+                putStrLn "[Error]: La fecha inicial debe ser menor a la fecha final."
+                loop
+        else return [entryDate,departDate]
+    loop
+
+-- Obtiene la cantidad de niños y adultos
+-- Retorna una lista con un string de la cantidad de adultos en la posicion 0 y los niños en la 1
+getNumAdultChild :: IO [String]
+getNumAdultChild = do
+    let loopAdult = do
+        putStr "\nCantidad de adultos: "
+        numAdults <-getLine
+        if not (isInt numAdults) then
+            do
+                putStrLn "[Error]: Lo ingresado no es un número entero."
+                loopAdult
+        else return numAdults
+
+    let loopChild = do
+        putStr "\nCantidad de niños: "
+        numChildren <-getLine
+        if not (isInt numChildren) then
+            do
+                putStrLn "[Error]: Lo ingresado no es un número entero."
+                loopChild
+        else return numChildren
+    numadult<-loopAdult
+    numChild<-loopChild
+    return [numadult,numChild]
+
+-- Obtiene el tipo de habitación, la cantidad de adultos y niños huespedes
+-- Retorna una lista de strings con el input de los datos.
+getNumAdChRoomType :: IO [String]
+getNumAdChRoomType = do
+    -- Loop que verifica si el tipo de habitación es válido
+    let loopRoom = do
+        putStr "\nSeleccione el tipo de habitación: "
+        roomType <-getLine
+        if not (isInt roomType) then
+            do
+                putStrLn "[Error]: Lo ingresado no es un número entero."
+                loopRoom
+        else return roomType
+
+    -- Loop que verifica si es número
+    let loopNumAdult = do 
+        putStr "\nCantidad de huéspedes adultos: "
+        numAdultGuests <-getLine
+        if not (isInt numAdultGuests) then
+            do
+                putStrLn "[Error]: Lo ingresado no es un número entero."
+                loopNumAdult
+        else return numAdultGuests
+
+    -- Loop que verifica si es número
+    let loopNumChild = do
+        putStr "\nCantidad de huéspedes niños: "
+        numChildGuests <-getLine
+        if not (isInt numChildGuests) then
+            do
+                putStrLn "[Error]: Lo ingresado no es un número entero."
+                loopNumChild        
+        else return numChildGuests
+
+    roomType <- loopRoom
+    numAdult <- loopNumAdult
+    numChild <- loopNumChild
+    return [roomType,numAdult,numChild]
+
+saveReservation :: Show a => a -> IO ()
+saveReservation reservationData= do print reservationData
+
+reservation :: IO ()
 reservation = do
     putStrLn "\t\tReservación"
 
-    -- FECHA DE INGRESO
-    putStrLn "Fecha de ingreso [Ejemplo]: 23-09-2021"
-    putStr ">>"
-    entryDateStr <- getLine
-    let entryDate = validDate entryDateStr
+    dateRange <- getDateReservation
+    numAdultChild <- getNumAdultChild
+    let numAdult = read (head numAdultChild)::Int
+    let numChild = read (numAdultChild!!1)::Int
 
-    when (isNothing entryDate) $
+    putStr "Nombre de quien reserva: "
+    name <- getLine
+
+    roomTypeData <- getNumAdChRoomType
+    let numAdultGuest = read (roomTypeData!!1)::Int
+    let numChildGuest = read (roomTypeData!!2)::Int
+
+    -- Verifica si el total de huéspedes suma el total de adultos y niños.
+    let numChildAdults = numAdult + numChild
+    let numChildAdultsGuests = numAdultGuest + numChildGuest
+    when (numChildAdults /= numChildAdultsGuests && numChildAdults > 0) $
         do
-            putStrLn "[Error]: El formato de la fecha es incorrecto."
+            putStrLn "El número de huéspedes y niños no es el mismo que la cantidad de adultos y niños o no son mayores a 0"
             reservation
-
-    -- FECHA DE SALIDA
-    putStrLn "\nFecha de salida [Ejemplo]: 24-09-2021 "
-    putStr ">>"
-    departDateStr <- getLine
-    let departDate = validDate departDateStr
-
-    when (isNothing departDate) $
-        do
-            putStrLn "[Error]: El formato de la fecha es incorrecto."
-            reservation
-
-    -- Verifica si la fecha inicial es mayor a la final
-    when (entryDate > entryDate) $
-        do
-            putStrLn "[Error]: La fecha inicial debe ser menor a la fecha final."
-            reservation
-
-    putStr "\nCantidad de adultos: "
-    numAdults <-getLine
-    unless (isInt numAdults) $
-        do
-            putStrLn "[Error]: Lo ingresado no es un númeor entero."
-            reservation
-
-    putStr "\nCantidad de niños: "
-    numChildren <-getLine
-    unless (isInt numChildren) $
-        do
-            putStrLn "[Error]: Lo ingresado no es un número entero."
-            reservation
+    let reservationData = dateRange++numAdultChild++[name]++roomTypeData
+    saveReservation  reservationData
 
 
-    putStr "\nSeleccione el tipo de habitación: "
-    roomType <-getLine
-    unless (isInt roomType) $
-        do
-            putStrLn "[Error]: Lo ingresado no es un número entero."
-            reservation
-
-    putStr "\nCantidad de huéspedes adultos: "
-    numAdultGuests <-getLine
-    unless (isInt numAdultGuests) $
-        do
-            putStrLn "[Error]: Lo ingresado no es un número entero."
-            reservation
-
-    putStr "\nCantidad de huéspedes niños: "
-    numChildGuests <-getLine
-    unless (isInt numChildGuests) $
-        do
-            putStrLn "[Error]: Lo ingresado no es un número entero."
-            reservation
-
-
-
-
+cancelReservation :: IO ()
 cancelReservation = do
     putStrLn "Cancelar reservación"
 
@@ -139,6 +199,7 @@ invoiceReservation :: IO ()
 invoiceReservation = do
     putStrLn "Facturar reservación"
 
+menuGeneral :: IO ()
 menuGeneral = do
     putStrLn "\t\tOpciones Generales"
     putStrLn "1- Reservación"
