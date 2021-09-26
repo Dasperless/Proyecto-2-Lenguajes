@@ -2,10 +2,21 @@ module Includes.File (
   printFile,
   fileToMatrix,
   getFileLines,
-  writeCsv
+  getFileData,
+  writeCsv,
+  loadFile,
+  addLineCsv
 ) where
-import System.IO ()
-import qualified Data.ByteString.Char8 as B
+import System.IO (withFile, IOMode (ReadMode), hGetContents)
+import Text.Parsec
+import qualified Control.Monad
+
+
+loadFile :: FilePath -- Lee un archivo
+  -> IO [Char] --"La dirección de un archivo"
+loadFile filename = withFile filename ReadMode $ \handle -> do
+  theContent <- hGetContents handle
+  mapM return theContent
 
 -- Separa un string si es igual a un token
 -- Ejemplo:
@@ -44,8 +55,13 @@ fileToMatrix list = do
 -- path: un string con la dirección del archivo
 getFileLines :: FilePath -> IO [String]
 getFileLines path = do
-  str <- readFile path
+  str <- loadFile path
   return (lines str)
+
+getFileData :: FilePath -> IO [[[Char]]]
+getFileData path = do
+  file <- getFileLines path
+  return (fileToMatrix file)
 
 -- Imprime una lista 
 -- Recibe una lista de strings
@@ -61,7 +77,7 @@ printRow row = do
 -- Imprime una matriz
 -- Recibe una matriz de strings
 printMatrix :: [[[Char]]] -> IO ()
-printMatrix matrix = 
+printMatrix matrix =
   if null matrix
     then putStr ""
   else
@@ -83,16 +99,30 @@ printFile path = do
 --  list: lista de string
 -- Retorna: string
 listToString :: [[Char]] -> [Char]
-listToString list 
+listToString list
   | null list = return '\n'
   | length list == 1 = head list++listToString (tail list)
   | otherwise = head list++","++listToString (tail list)
- 
+
 -- Añada una nueva linea a un archivo csv
 -- Recibe:
 --  path: la dirección del archivo
 --  newData: Una lista de strings a escribir en un csv
-writeCsv :: FilePath -> [[Char]] -> IO ()
-writeCsv path newData = do
+addLineCsv :: FilePath -> [[Char]] -> IO ()
+addLineCsv path newData = do
   let dataFileStr = listToString newData
   appendFile path dataFileStr
+
+matrixToString :: [[[Char]]] -> [Char]
+matrixToString matrix = do
+    if null matrix then
+      ""
+    else listToString (head matrix) ++ matrixToString (tail matrix)
+
+-- Elimina todo el contenido de un archivo y agrega nueva información
+-- path = dirección del archivo
+-- newData = lista de strings a escribir en el archivo
+writeCsv :: FilePath -> [[[Char]]] -> IO ()
+writeCsv path newData = do
+  let newDataStr = matrixToString newData
+  writeFile path newDataStr

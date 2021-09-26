@@ -1,42 +1,71 @@
-{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 import qualified Includes.File
 import qualified Includes.Date
 import System.Exit (exitSuccess)
-import Includes.File (printFile)
+import Includes.File (printFile, getFileData, addLineCsv, writeCsv)
 import qualified Control.Monad
 import Includes.Date ( validDate )
 import Data.Maybe (isNothing, isJust, fromJust)
 import Control.Monad (when, unless)
 import Text.Read (readMaybe)
 import Data.Time (UniversalTime)
+import Data.Time.Clock ()
 
 isInt :: String -> Bool
 isInt num = do
     let x = readMaybe num :: Maybe Int
     isJust x
 
+-- Información del hotel
 hotelInfo :: IO ()
 hotelInfo = do
-    printFile "./BD/info.csv"
+    putStrLn "\t\tInformación del hotel"
+    putStrLn "1- Modificar información"
+    putStrLn "2- Imprimir información"
+    putStrLn "3- Salir"
+    putStr ">>"
+    option <- getLine
+    case option of  "1" -> modHotelInfo
+                    "2" -> printFile "./BD/info.csv"
+                    "3" -> return()
+                    _ -> putStrLn "[ERROR]: La opción elegida no es válida"
+    Control.Monad.when (option /= "3") hotelInfo
+
+-- Modifica los datos del hotel
+modHotelInfo :: IO ()
+modHotelInfo  = do
+    file <- getFileData "./BD/info.csv"
+    putStr "Nombre de la empresa: "
+    company <- getLine
+
+    putStr "Cedula jurídica: "
+    legalId <- getLine
+
+    putStr "Sitio web: "
+    website <- getLine
+
+    putStr "Teléfono: "
+    tel <- getLine
+
+    putStr "País: "
+    country <- getLine
+
+    putStr "Provincia: "
+    province <- getLine
+    writeCsv "./BD/info.csv" (take 1 file++[[company,legalId,website,tel,country,province]])
+    putStrLn "Se ha modificado con exito"
 
 loadRoomType :: IO ()
-loadRoomType = do
-    putStrLn "Cargar tipo de habitaciones"
+loadRoomType = putStrLn "Cargar tipo de habitaciones"
 
-numRoomsByType = do
-    putStrLn "Asignar Cantidad de habitaciones por tipo"
+numRoomsByType = putStrLn "Asignar Cantidad de habitaciones por tipo"
 
-chargeRates = do
-    putStrLn "Carga de Tarifas"
+chargeRates = putStrLn "Carga de Tarifas"
 
-consultReservations = do
-    putStrLn "Consultar Reservaciones"
+consultReservations = putStrLn "Consultar Reservaciones"
 
-consultInvoice = do
-    putStrLn "Consulta de facturas"
+consultInvoice = putStrLn "Consulta de facturas"
 
-occupancyStatistics = do
-    putStrLn "Estadísticas de ocupación"
+occupancyStatistics = putStrLn "Estadísticas de ocupación"
 
 menuAdmin :: IO ()
 menuAdmin = do
@@ -137,7 +166,7 @@ getNumAdChRoomType = do
         else return roomType
 
     -- Loop que verifica si es número
-    let loopNumAdult = do 
+    let loopNumAdult = do
         putStr "\nCantidad de huéspedes adultos: "
         numAdultGuests <-getLine
         if not (isInt numAdultGuests) then
@@ -153,7 +182,7 @@ getNumAdChRoomType = do
         if not (isInt numChildGuests) then
             do
                 putStrLn "[Error]: Lo ingresado no es un número entero."
-                loopNumChild        
+                loopNumChild
         else return numChildGuests
 
     roomType <- loopRoom
@@ -161,8 +190,16 @@ getNumAdChRoomType = do
     numChild <- loopNumChild
     return [roomType,numAdult,numChild]
 
-saveReservation :: Show a => a -> IO ()
-saveReservation reservationData= do print reservationData
+saveReservation :: [String] -> IO ()
+saveReservation reservationData= do
+    reservHistory <- getFileData "./BD/Reservation.csv"
+    let lastId = head (last reservHistory)
+    if  not (isInt lastId) then
+        addLineCsv "./BD/Reservation.csv" ("0":reservationData)
+    else do
+            let id = (read lastId::Int)+1
+            addLineCsv "./BD/Reservation.csv" (show id:reservationData)
+
 
 reservation :: IO ()
 reservation = do
@@ -187,17 +224,15 @@ reservation = do
         do
             putStrLn "El número de huéspedes y niños no es el mismo que la cantidad de adultos y niños o no son mayores a 0"
             reservation
-    let reservationData = dateRange++numAdultChild++[name]++roomTypeData
+    let reservationData = [name]++dateRange++numAdultChild++roomTypeData
     saveReservation  reservationData
 
 
 cancelReservation :: IO ()
-cancelReservation = do
-    putStrLn "Cancelar reservación"
+cancelReservation = putStrLn "Cancelar reservación"
 
 invoiceReservation :: IO ()
-invoiceReservation = do
-    putStrLn "Facturar reservación"
+invoiceReservation = putStrLn "Facturar reservación"
 
 menuGeneral :: IO ()
 menuGeneral = do
