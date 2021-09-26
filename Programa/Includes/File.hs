@@ -10,7 +10,13 @@ module Includes.File (
 import System.IO (withFile, IOMode (ReadMode), hGetContents)
 import Text.Parsec
 import qualified Control.Monad
+import Data.List (sort,group)
 
+
+
+
+rmdups :: (Ord a) => [a] -> [a]
+rmdups = map head . group . sort
 
 loadFile :: FilePath -- Lee un archivo
   -> IO [Char] --"La dirección de un archivo"

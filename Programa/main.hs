@@ -9,13 +9,18 @@ import Control.Monad (when, unless)
 import Text.Read (readMaybe)
 import Data.Time (UniversalTime)
 import Data.Time.Clock ()
+import Data.IORef
+    ( IORef, atomicModifyIORef', newIORef, readIORef )
+import System.IO.Unsafe (unsafePerformIO)
 
-isInt :: String -> Bool
+-- Verifica si un número es entero
+isInt :: String -- Obtiene un string
+  -> Bool--Retorna True si representa un entero, False en caso contrario
 isInt num = do
     let x = readMaybe num :: Maybe Int
     isJust x
 
--- Información del hotel
+-- Menu de la información del hotel
 hotelInfo :: IO ()
 hotelInfo = do
     putStrLn "\t\tInformación del hotel"
@@ -54,8 +59,30 @@ modHotelInfo  = do
     writeCsv "./BD/info.csv" (take 1 file++[[company,legalId,website,tel,country,province]])
     putStrLn "Se ha modificado con exito"
 
+-- Representación de variable global del 
+-- tipo de cuarto.
+roomTypeRef :: IORef String
+roomTypeRef =
+  unsafePerformIO (newIORef "../BD/RoomType.csv")
+{-# NOINLINE roomTypeRef #-}
+
+-- Lee la variable global del tipo de cuarto
+readRoomTypePath :: IO String
+readRoomTypePath =
+  readIORef roomTypeRef
+
+-- Modifica el path del tipo de cuarto
+newRoomTypePath :: String -- Recibe un string con la ruta
+  -> IO ()--No retorna nada
+newRoomTypePath path =
+  atomicModifyIORef' roomTypeRef (const (path, ()))
+
+-- Carga carga el tipo de cuarto
 loadRoomType :: IO ()
-loadRoomType = putStrLn "Cargar tipo de habitaciones"
+loadRoomType = do
+    putStrLn "Ingrese la ruta del archivo: "
+    filePath <- getLine
+    newRoomTypePath filePath
 
 numRoomsByType = putStrLn "Asignar Cantidad de habitaciones por tipo"
 
@@ -190,7 +217,8 @@ getNumAdChRoomType = do
     numChild <- loopNumChild
     return [roomType,numAdult,numChild]
 
-saveReservation :: [String] -> IO ()
+saveReservation :: [String] --Lista de strings
+  -> IO ()--Guarda los datos de reservación en un csv
 saveReservation reservationData= do
     reservHistory <- getFileData "./BD/Reservation.csv"
     let lastId = head (last reservHistory)
