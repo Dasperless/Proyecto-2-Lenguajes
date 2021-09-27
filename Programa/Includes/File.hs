@@ -5,6 +5,8 @@ module Includes.File (
   getFileData,
   writeCsv,
   loadFile,
+  noHeaderData,
+  getHeaderData,
   addLineCsv
 ) where
 import System.IO (withFile, IOMode (ReadMode), hGetContents)
@@ -64,10 +66,26 @@ getFileLines path = do
   str <- loadFile path
   return (lines str)
 
-getFileData :: FilePath -> IO [[[Char]]]
+-- Retorna una matriz de los datos del archivo
+getFileData :: FilePath -- La ruta del archivo
+  -> IO [[[Char]]] -- Matriz de string 
 getFileData path = do
   file <- getFileLines path
   return (fileToMatrix file)
+
+-- Retorna el header del archivo csv
+getHeaderData :: FilePath -- La ruta del archivo
+  -> IO [[Char]] -- Una lista con el header del csv
+getHeaderData path = do
+  dataFile<-getFileData path 
+  return (head dataFile)
+
+-- Retorna los datos del csv sin los encabezados
+noHeaderData :: FilePath -- La ruta del archivo
+  -> IO [[[Char]]]--Una matriz de string
+noHeaderData path =  do 
+    dataFile<-getFileData path 
+    return (tail dataFile)
 
 -- Imprime una lista 
 -- Recibe una lista de strings
