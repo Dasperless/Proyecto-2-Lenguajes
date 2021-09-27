@@ -82,35 +82,47 @@ loadRoomType = do
   filePath <- getLine
   newRoomTypePath filePath
 
-loopNumRooms :: [[String]] -> [[String]] -> IO [[String]]
-loopNumRooms file resMatrix = 
+-- Ciclo para preguntar la cantidad de habitaciones por tipo
+loopNumRooms :: [[String]] -- Una matriz con los tipos de habitación
+  -> [[String]] -- Una matriz donde se guardan los datos
+  -> Int  --Id donde empieza ej: 0
+  -> IO [[String]] -- Una matriz con la cantidad y el tipo ej: [["10","Individual"]...]
+loopNumRooms file resMatrix id=
   if null file
     then return resMatrix
   else  do
     let typeName = head (head file)
-    row  <-getNumRooms typeName
-    loopNumRooms (drop 1 file) (resMatrix++[row])
+    row  <-getNumRooms typeName id
+    let newId = read (head (last row))::Int
+    loopNumRooms (drop 1 file) (resMatrix++row) (newId+1)
 
-getNumRooms :: String -> IO [String]
-getNumRooms typeName = do
+-- Verifica y obtiene la cantidad de habitaciones por tipo
+getNumRooms :: String -- El nombre del tipo
+  -> Int --Id
+  -> IO [[String]] -- Una lista con la cantidad de habitaciones y el tipo ej:["10",Individual]
+getNumRooms typeName id= do
     printf "Ingrese la cantidad de habitaciones para %s: " typeName
     num<-getLine
     if not (isInt num) then
       do
         putStrLn "[Error]: No se ingresó un número"
-        getNumRooms typeName
-      else return [num,typeName]
-
+        getNumRooms typeName id
+      else do
+        let lastId = id + read num::Int
+        return [[show x,typeName] | x<-[id..(lastId-1)]]
 
 numRoomsByType :: IO ()
 numRoomsByType = do
+  numRoomsFile <- noHeaderData "./BD/Rooms.csv"
+  if null numRoomsFile then do
     path <- readRoomTypePath
-    header<- getHeaderData "./BD/Rooms.csv"
     fileData <- noHeaderData path
+    header<- getHeaderData "./BD/Rooms.csv"
     putStrLn "Asignar Cantidad de habitaciones por tipo"
-    numRoomsData  <- loopNumRooms fileData []
+    numRoomsData  <- loopNumRooms fileData [] 1
     let newData = header:numRoomsData
     writeCsv "./BD/Rooms.csv" newData
+  else putStrLn "[INFO]: Ya se han asignado la cantidad de habitaciones por tipo"
 
 
 chargeRates = putStrLn "Carga de Tarifas"
