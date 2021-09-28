@@ -3,8 +3,7 @@ import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Time (UniversalTime)
 import Includes.Date (validDate)
-import Includes.File (addLineCsv, getFileData, noHeaderData,getHeaderData, printFile, writeCsv)
-import System.IO.Unsafe (unsafePerformIO)
+import Includes.File (addLineCsv, getFileData, getHeaderData, newRoomTypePath, noHeaderData, printFile, readRoomTypePath, roomTypeRef, writeCsv)
 import Text.Printf (printf)
 import Text.Read (readMaybe)
 
@@ -15,6 +14,15 @@ isInt ::
 isInt num = do
   let x = readMaybe num :: Maybe Int
   isJust x
+
+inputInt :: IO String
+inputInt = do
+  input<-getLine
+  if isInt input
+    then return input
+  else do
+    putStrLn "[Error]: El dato ingresado no es un entero"
+    inputInt
 
 -- Menu de la información del hotel
 hotelInfo :: IO ()
@@ -56,25 +64,6 @@ modHotelInfo = do
   writeCsv "./BD/info.csv" (take 1 file ++ [[company, legalId, website, tel, country, province]])
   putStrLn "Se ha modificado con exito"
 
--- Representación de variable global del
--- tipo de cuarto.
-roomTypeRef :: IORef String
-roomTypeRef =
-  unsafePerformIO (newIORef "./BD/RoomType.csv")
-{-# NOINLINE roomTypeRef #-}
-
--- Lee la variable global del tipo de cuarto
-readRoomTypePath :: IO String
-readRoomTypePath =
-  readIORef roomTypeRef
-
--- Modifica el path del tipo de cuarto
-newRoomTypePath ::
-  String -> -- Recibe un string con la ruta
-  IO () --No retorna nada
-newRoomTypePath path =
-  atomicModifyIORef' roomTypeRef (const (path, ()))
-
 -- Carga carga el tipo de cuarto
 loadRoomType :: IO ()
 loadRoomType = do
@@ -83,49 +72,73 @@ loadRoomType = do
   newRoomTypePath filePath
 
 -- Ciclo para preguntar la cantidad de habitaciones por tipo
-loopNumRooms :: [[String]] -- Una matriz con los tipos de habitación
-  -> [[String]] -- Una matriz donde se guardan los datos
-  -> Int  --Id donde empieza ej: 0
-  -> IO [[String]] -- Una matriz con la cantidad y el tipo ej: [["10","Individual"]...]
-loopNumRooms file resMatrix id=
+loopNumRooms ::
+  [[String]] -> -- Una matriz con los tipos de habitación
+  [[String]] -> -- Una matriz donde se guardan los datos
+  Int -> --Id donde empieza ej: 0
+  IO [[String]] -- Una matriz con la cantidad y el tipo ej: [["10","Individual"]...]
+loopNumRooms file resMatrix id =
   if null file
     then return resMatrix
-  else  do
-    let typeName = head (head file)
-    row  <-getNumRooms typeName id
-    let newId = read (head (last row))::Int
-    loopNumRooms (drop 1 file) (resMatrix++row) (newId+1)
+    else do
+      let typeName = head (head file)
+      row <- getNumRooms typeName id
+      let newId = read (head (last row)) :: Int
+      loopNumRooms (drop 1 file) (resMatrix ++ row) (newId + 1)
 
 -- Verifica y obtiene la cantidad de habitaciones por tipo
-getNumRooms :: String -- El nombre del tipo
-  -> Int --Id
-  -> IO [[String]] -- Una lista con la cantidad de habitaciones y el tipo ej:["10",Individual]
-getNumRooms typeName id= do
-    printf "Ingrese la cantidad de habitaciones para %s: " typeName
-    num<-getLine
-    if not (isInt num) then
-      do
-        putStrLn "[Error]: No se ingresó un número"
-        getNumRooms typeName id
-      else do
-        let lastId = id + read num::Int
-        return [[show x,typeName] | x<-[id..(lastId-1)]]
+getNumRooms ::
+  String -> -- El nombre del tipo
+  Int -> --Id
+  IO [[String]] -- Una lista con la cantidad de habitaciones y el tipo ej:["10",Individual]
+getNumRooms typeName id = do
+  printf "Ingrese la cantidad de habitaciones para %s: " typeName
+  num <- getLine
+  if not (isInt num)
+    then do
+      putStrLn "[Error]: No se ingresó un número"
+      getNumRooms typeName id
+    else do
+      let lastId = id + read num :: Int
+      return [[show x, typeName] | x <- [id .. (lastId - 1)]] --Lista por comprensión
 
+-- Asigna la cantidad de cuartos por tipo.
 numRoomsByType :: IO ()
 numRoomsByType = do
   numRoomsFile <- noHeaderData "./BD/Rooms.csv"
-  if null numRoomsFile then do
-    path <- readRoomTypePath
-    fileData <- noHeaderData path
-    header<- getHeaderData "./BD/Rooms.csv"
-    putStrLn "Asignar Cantidad de habitaciones por tipo"
-    numRoomsData  <- loopNumRooms fileData [] 1
-    let newData = header:numRoomsData
-    writeCsv "./BD/Rooms.csv" newData
-  else putStrLn "[INFO]: Ya se han asignado la cantidad de habitaciones por tipo"
+  if null numRoomsFile
+    then do
+      path <- readRoomTypePath
+      fileData <- noHeaderData path
+      header <- getHeaderData "./BD/Rooms.csv"
+      putStrLn "Asignar Cantidad de habitaciones por tipo"
+      numRoomsData <- loopNumRooms fileData [] 1
+      let newData = header : numRoomsData
+      writeCsv "./BD/Rooms.csv" newData
+    else putStrLn "[INFO]: Ya se han asignado la cantidad de habitaciones por tipo"
 
+-- Carga las tarifas 
+chargeRates :: IO ()
+chargeRates = do
+  putStrLn "\t\tCarga de Tarifas"
+  putStr "Ingrese la ruta del archivo: "
+  path <- getLine
+  file <-noHeaderData path
+  let header = ["Id Tarifa","Precio"]
+  newDataRates <- getChargeRates file []
+  writeCsv path (header:newDataRates)
 
-chargeRates = putStrLn "Carga de Tarifas"
+-- Obtiene el input de las tarifas
+getChargeRates :: [[String]] -- ^ Una matriz con los datos del archivo
+  -> [[String]] -- ^ La lista donde se va a guardar los datos de las tarifas
+  -> IO [[String]]
+getChargeRates file newRates = do
+  if not (null file) then do
+    let rateNum = head (head file)
+    printf "Ingrese el valor de la tarifa %s: " rateNum
+    newRate<-inputInt
+    getChargeRates (tail file) (newRates++[[rateNum,newRate]])
+  else return newRates
 
 consultReservations = putStrLn "Consultar Reservaciones"
 
@@ -219,8 +232,7 @@ getNumAdultChild = do
   return [numadult, numChild]
 
 -- Obtiene el tipo de habitación, la cantidad de adultos y niños huespedes
--- Retorna una lista de strings con el input de los datos.
-getNumAdChRoomType :: IO [String]
+getNumAdChRoomType :: IO [String] -- Retorna una lista de strings con el input de los datos.
 getNumAdChRoomType = do
   -- Loop que verifica si el tipo de habitación es válido
   let loopRoom = do
