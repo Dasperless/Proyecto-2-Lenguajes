@@ -1,9 +1,9 @@
 import Control.Monad (unless, when)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Maybe (fromJust, isJust, isNothing)
-import Data.Time (UniversalTime)
+import Data.Time (UniversalTime, getCurrentTime)
 import Includes.Date (validDate)
-import Includes.File (addLineCsv, getFileData, getHeaderData, newRoomTypePath, noHeaderData, printFile, readRoomTypePath, roomTypeRef, writeCsv)
+import Includes.File (addLineCsv, getFileData, getHeaderData, newRoomTypePath, noHeaderData, printFile, readRoomTypePath, roomTypeRef, writeCsv, printTablePos, printRow)
 import Text.Printf (printf)
 import Text.Read (readMaybe)
 
@@ -236,33 +236,19 @@ getNumAdChRoomType :: IO [String] -- Retorna una lista de strings con el input d
 getNumAdChRoomType = do
   -- Loop que verifica si el tipo de habitación es válido
   let loopRoom = do
-        putStr "\nSeleccione el tipo de habitación: "
-        roomType <- getLine
-        if not (isInt roomType)
-          then do
-            putStrLn "[Error]: Lo ingresado no es un número entero."
-            loopRoom
-          else return roomType
+      printFile  "./BD/Rooms.csv"
+      putStr "\nSeleccione el id de la habitacion: "
+      inputInt
 
   -- Loop que verifica si es número
   let loopNumAdult = do
-        putStr "\nCantidad de huéspedes adultos: "
-        numAdultGuests <- getLine
-        if not (isInt numAdultGuests)
-          then do
-            putStrLn "[Error]: Lo ingresado no es un número entero."
-            loopNumAdult
-          else return numAdultGuests
+      putStr "\nCantidad de huéspedes adultos: "
+      inputInt
 
   -- Loop que verifica si es número
   let loopNumChild = do
-        putStr "\nCantidad de huéspedes niños: "
-        numChildGuests <- getLine
-        if not (isInt numChildGuests)
-          then do
-            putStrLn "[Error]: Lo ingresado no es un número entero."
-            loopNumChild
-          else return numChildGuests
+      putStr "\nCantidad de huéspedes niños: "
+      inputInt
 
   roomType <- loopRoom
   numAdult <- loopNumAdult
@@ -285,15 +271,16 @@ reservation :: IO ()
 reservation = do
   putStrLn "\t\tReservación"
 
-  dateRange <- getDateReservation
-  numAdultChild <- getNumAdultChild
-  let numAdult = read (head numAdultChild) :: Int
-  let numChild = read (numAdultChild !! 1) :: Int
+  dateRange <- getDateReservation --Obtiene la fecha de ingreso y salida
+  numAdultChild <- getNumAdultChild--Obtiene el número de niños y adultos
+  let numAdult = read (head numAdultChild) :: Int --Cantidad de niños
+  let numChild = read (numAdultChild !! 1) :: Int --Cantidad de adultos
 
   putStr "Nombre de quien reserva: "
   name <- getLine
 
   roomTypeData <- getNumAdChRoomType
+  let roomId = head roomTypeData
   let numAdultGuest = read (roomTypeData !! 1) :: Int
   let numChildGuest = read (roomTypeData !! 2) :: Int
 
@@ -304,8 +291,24 @@ reservation = do
     do
       putStrLn "El número de huéspedes y niños no es el mismo que la cantidad de adultos y niños o no son mayores a 0"
       reservation
-  let reservationData = [name] ++ dateRange ++ numAdultChild ++ roomTypeData
+  let reservationData = [name] ++ dateRange ++ numAdultChild ++ [roomId]++["Activo"]
   saveReservation reservationData
+  receipt dateRange numAdultChild
+
+-- Imprime el recibo
+receipt :: [String] -- ^ Lista con la fecha de inicio y de salida
+  -> [String] -- ^ Cantidad de niños y adultos
+  -> IO ()
+receipt dateRange numAdultChild = do
+  let header = ["id reserva","nombre de quien reserva","fecha de reservacion","fecha ingreso","fecha salida", "cantidad adultos","cantidad de ninos","total"]
+  printRow header
+  file <- noHeaderData "./BD/Reservation.csv"
+  let dataReserv = last file
+  let lastId = head dataReserv
+  currentTime <- getCurrentTime
+  let receiptData = [lastId]++[dataReserv!!1]++[show currentTime]++dateRange++numAdultChild
+  printRow receiptData
+
 
 cancelReservation :: IO ()
 cancelReservation = putStrLn "Cancelar reservación"

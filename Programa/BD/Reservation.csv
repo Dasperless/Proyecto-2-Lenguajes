@@ -1,1 +1,3 @@
-Id,Nombre,Fecha reservacion,Fecha ingreso,Fecha salida,Cantidad adultos,Cantidad ninos,Total reserva
+Id,Nombre,Fecha ingreso,Fecha salida,Cantidad adultos,Cantidad ninos
+0,Dario Vargas,27-09-2021,28-09-2021,2,1,1,2,1
+1,Dario Vargas,27-09-2021,28-09-2021,2,1,1,2,1

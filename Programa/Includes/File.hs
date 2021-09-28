@@ -10,11 +10,12 @@ module Includes.File (
   roomTypeRef,
   readRoomTypePath,
   newRoomTypePath,
+  printTablePos,
+  printRow,
   addLineCsv
 ) where
 import System.IO (withFile, IOMode (ReadMode), hGetContents)
 import System.IO.Unsafe (unsafePerformIO)
-import Text.Parsec
 import qualified Control.Monad
 import Data.List (sort,group)
 import Data.IORef
@@ -43,7 +44,7 @@ rmdups = map head . group . sort
 
 -- Carga una lista con los datos del archivo
 loadFile :: FilePath -- ^  La dirección de un archivo
-  -> IO [Char] 
+  -> IO [Char]
 loadFile filename = withFile filename ReadMode $ \handle -> do
   theContent <- hGetContents handle
   mapM return theContent
@@ -61,7 +62,7 @@ wordsWhen p s = case dropWhile p s of
 -- Función auxiliar que crea una matriz separando de los strings por coma
 fileToMatrixAux :: [[Char]] -- ^ Una lista de strings
   -> [[[Char]]] -- ^ Lista vacía
-  -> [[[Char]]] 
+  -> [[[Char]]]
 fileToMatrixAux list newList = do
   if null list
     then newList
@@ -91,16 +92,16 @@ getFileData path = do
 
 -- Retorna el header del archivo csv
 getHeaderData :: FilePath -- ^ La ruta del archivo
-  -> IO [[Char]] 
+  -> IO [[Char]]
 getHeaderData path = do
-  dataFile<-getFileData path 
+  dataFile<-getFileData path
   return (head dataFile)
 
 -- Retorna los datos del csv sin los encabezados
 noHeaderData :: FilePath -- ^ La ruta del archivo
   -> IO [[[Char]]]--Una matriz de string
-noHeaderData path =  do 
-    dataFile<-getFileData path 
+noHeaderData path =  do
+    dataFile<-getFileData path
     return (tail dataFile)
 
 -- Imprime una lista 
@@ -113,6 +114,19 @@ printRow row = do
       do
       putStr $ head row ++ "\t"
       printRow (tail row)
+
+-- Imprime una matriz
+printMatrixPos :: [[[Char]]] -- ^ Recibe una matriz de strings
+  -> Int
+  -> IO ()
+printMatrixPos matrix pos =
+  if null matrix
+    then putStr ""
+  else
+    do
+    let rowPos = show pos:head matrix
+    printRow rowPos
+    printMatrixPos (tail matrix) (pos+1)
 
 -- Imprime una matriz
 printMatrix :: [[[Char]]] -- ^ Recibe una matriz de strings
@@ -132,6 +146,17 @@ printFile path = do
   file <- getFileLines path
   let dataFile = fileToMatrix file
   printMatrix dataFile
+
+-- Imprime una lista con las posiciones
+printTablePos :: FilePath -- ^ La ruta dle archivo
+  -> IO ()
+printTablePos path = do
+  header <-getHeaderData path
+  let newHeader = "id" : header
+  dataFile <- noHeaderData path
+  printRow newHeader
+  printMatrixPos dataFile 0
+
 
 -- Convierte una lista a un string
 listToString :: [[Char]] -- ^ lista de string

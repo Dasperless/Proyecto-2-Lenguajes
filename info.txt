@@ -1,7 +1,7 @@
 a. Nombre del curso: Lenguajes de Porgramación
 b. Número de semestre y año lectivo: 2 2021
-c. Nombre de los Estudiantes: Dario Vargas, María Rubio
-d. Número de carnet de los estudiantes: 2018123226, 2019057908
+c. Nombre de los Estudiantes: Dario Vargas
+d. Número de carnet de los estudiantes: 2018123226
 e. Número de proyecto programado: 2
 f. Fecha de entrega: 28 de septiembre de 2021
 g. Estatus de la entrega: ____
