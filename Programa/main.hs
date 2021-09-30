@@ -2,10 +2,11 @@ import Control.Monad (unless, when)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Time (UniversalTime, getCurrentTime)
-import Includes.Date (validDate)
-import Includes.File (addLineCsv, getFileData, getHeaderData, newRoomTypePath, noHeaderData, printFile, readRoomTypePath, roomTypeRef, writeCsv, printTablePos, printRow)
 import Text.Printf (printf)
 import Text.Read (readMaybe)
+import Includes.Date (parseDate)
+import Includes.File (addLineCsv, getFileData, getHeaderData, newRoomTypePath, noHeaderData, printFile, readRoomTypePath, roomTypeRef, writeCsv, printTablePos, printRow)
+import Includes.Calc (getRateList)
 
 -- Verifica si un número es entero
 isInt ::
@@ -15,6 +16,7 @@ isInt num = do
   let x = readMaybe num :: Maybe Int
   isJust x
 
+-- Verifica que el input sea un entero
 inputInt :: IO String
 inputInt = do
   input<-getLine
@@ -178,10 +180,10 @@ getDate :: IO String
 getDate = do
   -- we define "loop" as a recursive IO action
   let loop = do
-        putStrLn "Ingresa la fecha (dd-mm-yyy): "
+        putStrLn "Ingresa la fecha (dd/mm/yyyy): "
         putStr ">>"
         entryDateStr <- getLine
-        let entryDate = validDate entryDateStr
+        let entryDate = parseDate entryDateStr
 
         if isNothing entryDate
           then do
@@ -267,6 +269,21 @@ saveReservation reservationData = do
       let id = (read lastId :: Int) + 1
       addLineCsv "./BD/Reservation.csv" (show id : reservationData)
 
+-- Imprime el recibo
+receipt :: [String] -- ^ Lista con la fecha de inicio y de salida
+  -> [String] -- ^ Cantidad de niños y adultos
+  -> IO ()
+receipt dateRange numAdultChild = do
+  let header = ["id reserva","nombre de quien reserva","fecha de reservacion","fecha ingreso","fecha salida", "cantidad adultos","cantidad de ninos","total"]
+  printRow header
+  file <- noHeaderData "./BD/Receipt.csv"
+  let dataReserv = last file
+  let lastId = head dataReserv
+  currentTime <- getCurrentTime
+  let receiptData = [lastId]++[dataReserv!!1]++[show currentTime]++dateRange++numAdultChild
+  printRow receiptData
+
+
 reservation :: IO ()
 reservation = do
   putStrLn "\t\tReservación"
@@ -291,24 +308,9 @@ reservation = do
     do
       putStrLn "El número de huéspedes y niños no es el mismo que la cantidad de adultos y niños o no son mayores a 0"
       reservation
-  let reservationData = [name] ++ dateRange ++ numAdultChild ++ [roomId]++["Activo"]
-  saveReservation reservationData
+  let receiptData = [name] ++ dateRange ++ numAdultChild ++ [roomId]
+  saveReservation receiptData
   receipt dateRange numAdultChild
-
--- Imprime el recibo
-receipt :: [String] -- ^ Lista con la fecha de inicio y de salida
-  -> [String] -- ^ Cantidad de niños y adultos
-  -> IO ()
-receipt dateRange numAdultChild = do
-  let header = ["id reserva","nombre de quien reserva","fecha de reservacion","fecha ingreso","fecha salida", "cantidad adultos","cantidad de ninos","total"]
-  printRow header
-  file <- noHeaderData "./BD/Reservation.csv"
-  let dataReserv = last file
-  let lastId = head dataReserv
-  currentTime <- getCurrentTime
-  let receiptData = [lastId]++[dataReserv!!1]++[show currentTime]++dateRange++numAdultChild
-  printRow receiptData
-
 
 cancelReservation :: IO ()
 cancelReservation = putStrLn "Cancelar reservación"
