@@ -1,1 +1,3 @@
-id reservacion,id habitacion,tipo habitacion,cantidad adultos,cantidad ninos
+id reservacion,id habitacion,tipo habitacion,cantidad adultos,cantidad ninos,nombre,fecha ingreso,fecha salida,estado
+0,2,Estandar,2,0,dario vargas,2021-09-30,2021-10-01,Activo
+1,2,Estandar,3,0,Dario Vargas Montoya,2021-09-30,2021-10-01,Activo

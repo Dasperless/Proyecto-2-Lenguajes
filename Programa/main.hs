@@ -1,12 +1,12 @@
 import Control.Monad (unless, when)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Maybe (fromJust, isJust, isNothing)
-import Data.Time (UniversalTime, getCurrentTime)
+import Data.Time (UniversalTime, getCurrentTime, Day)
 import Text.Printf (printf)
 import Text.Read (readMaybe)
-import Includes.Date (parseDate)
+import Includes.Date (parseDate, parseDateCsv)
 import Includes.File (addLineCsv, getFileData, getHeaderData, newRoomTypePath, noHeaderData, printFile, readRoomTypePath, roomTypeRef, writeCsv, printTablePos, printRow)
-import Includes.Calc (getRateList)
+import Includes.Calc (getRateList,getAdultPrice,getChildPrice)
 
 -- Verifica si un número es entero
 isInt ::
@@ -142,9 +142,13 @@ getChargeRates file newRates = do
     getChargeRates (tail file) (newRates++[[rateNum,newRate]])
   else return newRates
 
-consultReservations = putStrLn "Consultar Reservaciones"
+-- Consulta el historial de reservaciones
+consultReservations :: IO ()
+consultReservations = printFile "./BD/Reservation.csv"
 
-consultInvoice = putStrLn "Consulta de facturas"
+-- Consulta el historial de facturas
+consultInvoice :: IO ()
+consultInvoice = printFile "./BD/Invoice.csv"
 
 occupancyStatistics = putStrLn "Estadísticas de ocupación"
 
@@ -175,21 +179,19 @@ menuAdmin = do
   when (option /= "8") menuAdmin
 
 -- Obtiene una fecha por input y valida si es correcto el formato
--- Retona un string con la fecha
-getDate :: IO String
+-- Retona la fecha
+getDate :: IO Day
 getDate = do
   -- we define "loop" as a recursive IO action
   let loop = do
         putStrLn "Ingresa la fecha (dd/mm/yyyy): "
         putStr ">>"
         entryDateStr <- getLine
-        let entryDate = parseDate entryDateStr
+        let date = parseDate entryDateStr
 
-        if isNothing entryDate
-          then do
+        maybe (do
             putStrLn "[Error]: El formato de la fecha es incorrecto."
-            loop
-          else return entryDateStr
+            loop) return date
   loop -- start the first iteration
 
 -- Obtiene el rango de fecha de reservacion y los valida.
@@ -205,7 +207,7 @@ getDateReservation = do
           then do
             putStrLn "[Error]: La fecha inicial debe ser menor a la fecha final."
             loop
-          else return [entryDate, departDate]
+          else return [show entryDate, show departDate]
   loop
 
 -- Obtiene la cantidad de niños y adultos
@@ -251,11 +253,13 @@ getNumAdChRoomType = do
   let loopNumChild = do
       putStr "\nCantidad de huéspedes niños: "
       inputInt
-
   roomType <- loopRoom
   numAdult <- loopNumAdult
   numChild <- loopNumChild
-  return [roomType, numAdult, numChild]
+  file <- getFileData "./BD/Rooms.csv"
+  let roomIndex = read roomType ::Int
+  let roomData = file!!roomIndex
+  return (roomData ++ [numAdult, numChild])
 
 saveReservation ::
   [String] -> --Lista de strings
@@ -276,11 +280,22 @@ receipt :: [String] -- ^ Lista con la fecha de inicio y de salida
 receipt dateRange numAdultChild = do
   let header = ["id reserva","nombre de quien reserva","fecha de reservacion","fecha ingreso","fecha salida", "cantidad adultos","cantidad de ninos","total"]
   printRow header
-  file <- noHeaderData "./BD/Receipt.csv"
+
+  file <- noHeaderData "./BD/Reservation.csv"
   let dataReserv = last file
   let lastId = head dataReserv
   currentTime <- getCurrentTime
-  let receiptData = [lastId]++[dataReserv!!1]++[show currentTime]++dateRange++numAdultChild
+
+  let entryDay = fromJust (parseDateCsv (head dateRange))
+  let departDay = fromJust (parseDateCsv (last dateRange))
+
+  adultPrice <- getAdultPrice entryDay departDay 0
+  childPrice <- getAdultPrice entryDay departDay 0
+  let numAdult = read (head numAdultChild) :: Int
+  let numChild = read (last numAdultChild) :: Int
+  let total = numAdult*adultPrice + numChild * childPrice
+
+  let receiptData = [lastId]++[dataReserv!!1]++[show currentTime]++dateRange++numAdultChild++[show total]
   printRow receiptData
 
 
@@ -298,8 +313,8 @@ reservation = do
 
   roomTypeData <- getNumAdChRoomType
   let roomId = head roomTypeData
-  let numAdultGuest = read (roomTypeData !! 1) :: Int
-  let numChildGuest = read (roomTypeData !! 2) :: Int
+  let numAdultGuest = read (roomTypeData !! 2) :: Int
+  let numChildGuest = read (roomTypeData !! 3) :: Int
 
   -- Verifica si el total de huéspedes suma el total de adultos y niños.
   let numChildAdults = numAdult + numChild
@@ -309,7 +324,7 @@ reservation = do
       putStrLn "El número de huéspedes y niños no es el mismo que la cantidad de adultos y niños o no son mayores a 0"
       reservation
   let receiptData = [name] ++ dateRange ++ numAdultChild ++ [roomId]
-  saveReservation receiptData
+  saveReservation (roomTypeData++[name] ++ dateRange++["Activo"])
   receipt dateRange numAdultChild
 
 cancelReservation :: IO ()

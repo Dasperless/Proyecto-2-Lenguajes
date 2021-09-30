@@ -2,7 +2,8 @@ module Includes.Date
   ( parseDate,
     isHighSeason,
     getDateTuple,
-    isWeekend
+    isWeekend,
+    parseDateCsv
   )
 where
 
@@ -13,6 +14,12 @@ parseDate :: String -- ^ String con la fecha
   -> Maybe Day --Retorna maybe si la fecha es valida, Nothing en caso contrario
 parseDate date = do
   parseTimeM True defaultTimeLocale "%d/%m/%Y" date :: Maybe Day
+
+-- Convierte un string en una fecha 
+parseDateCsv :: String -- ^ String con la fecha
+  -> Maybe Day --Retorna maybe si la fecha es valida, Nothing en caso contrario
+parseDateCsv date = do
+  parseTimeM True defaultTimeLocale "%Y-%m-%d" date :: Maybe Day  
 
 -- Obtiene una tupla con los datos de la fecha
 getDateTuple :: Day -- ^ La fecha 
