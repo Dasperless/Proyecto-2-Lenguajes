@@ -1,0 +1,654 @@
+import Control.Monad (unless, when)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+import Data.Maybe (fromJust, isJust, isNothing)
+import Data.Time (UniversalTime, getCurrentTime, Day)
+import Text.Printf (printf)
+import Text.Read (readMaybe)
+import Includes.Date (parseDate, parseDateCsv)
+import Includes.File (addLineCsv, getFileData, getHeaderData, newRoomTypePath, noHeaderData, printFile, readRoomTypePath, roomTypeRef, writeCsv, printTablePos, printRow)
+import Includes.Calc (getRateList,getAdultPrice,getChildPrice)
+
+-- Verifica si un número es entero
+isInt ::
+  String -> -- Obtiene un string
+  Bool --Retorna True si representa un entero, False en caso contrario
+isInt num = do
+  let x = readMaybe num :: Maybe Int
+  isJust x
+
+-- Verifica que el input sea un entero
+inputInt :: IO String
+inputInt = do
+  input<-getLine
+  if isInt input
+    then return input
+  else do
+    putStrLn "[Error]: El dato ingresado no es un entero"
+    inputInt
+
+-- Menu de la información del hotel
+hotelInfo :: IO ()
+hotelInfo = do
+  putStrLn "\t\tInformación del hotel"
+  putStrLn "1- Modificar información"
+  putStrLn "2- Imprimir información"
+  putStrLn "3- Salir"
+  putStr ">>"
+  option <- getLine
+  case option of
+    "1" -> modHotelInfo
+    "2" -> printFile "./BD/info.csv"
+    "3" -> return ()
+    _ -> putStrLn "[ERROR]: La opción elegida no es válida"
+  Control.Monad.when (option /= "3") hotelInfo
+
+-- Modifica los datos del hotel
+modHotelInfo :: IO ()
+modHotelInfo = do
+  file <- getFileData "./BD/info.csv"
+  putStr "Nombre de la empresa: "
+  company <- getLine
+
+  putStr "Cedula jurídica: "
+  legalId <- getLine
+
+  putStr "Sitio web: "
+  website <- getLine
+
+  putStr "Teléfono: "
+  tel <- getLine
+
+  putStr "País: "
+  country <- getLine
+
+  putStr "Provincia: "
+  province <- getLine
+  writeCsv "./BD/info.csv" (take 1 file ++ [[company, legalId, website, tel, country, province]])
+  putStrLn "Se ha modificado con exito"
+
+-- Carga carga el tipo de cuarto
+loadRoomType :: IO ()
+loadRoomType = do
+  putStrLn "Ingrese la ruta del archivo: "
+  filePath <- getLine
+  newRoomTypePath filePath
+
+-- Ciclo para preguntar la cantidad de habitaciones por tipo
+loopNumRooms ::
+  [[String]] -> -- Una matriz con los tipos de habitación
+  [[String]] -> -- Una matriz donde se guardan los datos
+  Int -> --Id donde empieza ej: 0
+  IO [[String]] -- Una matriz con la cantidad y el tipo ej: [["10","Individual"]...]
+loopNumRooms file resMatrix id =
+  if null file
+    then return resMatrix
+    else do
+      let typeName = head (head file)
+      row <- getNumRooms typeName id
+      let newId = read (head (last row)) :: Int
+      loopNumRooms (drop 1 file) (resMatrix ++ row) (newId + 1)
+
+-- Verifica y obtiene la cantidad de habitaciones por tipo
+getNumRooms ::
+  String -> -- El nombre del tipo
+  Int -> --Id
+  IO [[String]] -- Una lista con la cantidad de habitaciones y el tipo ej:["10",Individual]
+getNumRooms typeName id = do
+  printf "Ingrese la cantidad de habitaciones para %s: " typeName
+  num <- getLine
+  if not (isInt num)
+    then do
+      putStrLn "[Error]: No se ingresó un número"
+      getNumRooms typeName id
+    else do
+      let lastId = id + read num :: Int
+      return [[show x, typeName] | x <- [id .. (lastId - 1)]] --Lista por comprensión
+
+-- Asigna la cantidad de cuartos por tipo.
+numRoomsByType :: IO ()
+numRoomsByType = do
+  numRoomsFile <- noHeaderData "./BD/Rooms.csv"
+  if null numRoomsFile
+    then do
+      path <- readRoomTypePath
+      fileData <- noHeaderData path
+      header <- getHeaderData "./BD/Rooms.csv"
+      putStrLn "Asignar Cantidad de habitaciones por tipo"
+      numRoomsData <- loopNumRooms fileData [] 1
+      let newData = header : numRoomsData
+      writeCsv "./BD/Rooms.csv" newData
+    else putStrLn "[INFO]: Ya se han asignado la cantidad de habitaciones por tipo"
+
+-- Carga las tarifas 
+chargeRates :: IO ()
+chargeRates = do
+  putStrLn "\t\tCarga de Tarifas"
+  putStr "Ingrese la ruta del archivo: "
+  path <- getLine
+  file <-noHeaderData path
+  let header = ["Id Tarifa","Precio"]
+  newDataRates <- getChargeRates file []
+  writeCsv path (header:newDataRates)
+
+-- Obtiene el input de las tarifas
+getChargeRates :: [[String]] -- ^ Una matriz con los datos del archivo
+  -> [[String]] -- ^ La lista donde se va a guardar los datos de las tarifas
+  -> IO [[String]]
+getChargeRates file newRates = do
+  if not (null file) then do
+    let rateNum = head (head file)
+    printf "Ingrese el valor de la tarifa %s: " rateNum
+    newRate<-inputInt
+    getChargeRates (tail file) (newRates++[[rateNum,newRate]])
+  else return newRates
+
+-- Consulta el historial de reservaciones
+consultReservations :: IO ()
+consultReservations = printFile "./BD/Reservation.csv"
+
+-- Consulta el historial de facturas
+consultInvoice :: IO ()
+consultInvoice = printFile "./BD/Invoice.csv"
+
+occupancyStatistics = putStrLn "Estadísticas de ocupación"
+
+menuAdmin :: IO ()
+menuAdmin = do
+  putStrLn "\t\tOpciones Administrativas"
+  putStrLn "1- Información de hotel"
+  putStrLn "2- Cargar tipo de habitaciones"
+  putStrLn "3- Asignar Cantidad de habitaciones por tipo"
+  putStrLn "4- Carga de Tarifas"
+  putStrLn "5- Consultar Reservaciones"
+  putStrLn "6- Consulta de facturas"
+  putStrLn "7- Estadísticas de ocupación"
+  putStrLn "8- Salir"
+  putStr ">>"
+  option <- getLine
+  case option of
+    "1" -> hotelInfo
+    "2" -> loadRoomType
+    "3" -> numRoomsByType
+    "4" -> chargeRates
+    "5" -> consultReservations
+    "6" -> consultInvoice
+    "7" -> occupancyStatistics
+    "8" -> return ()
+    _ -> putStrLn "[ERROR]: La opción elegida no es válida"
+
+  when (option /= "8") menuAdmin
+
+-- Obtiene una fecha por input y valida si es correcto el formato
+-- Retona la fecha
+getDate :: IO Day
+getDate = do
+  -- we define "loop" as a recursive IO action
+  let loop = do
+        putStrLn "Ingresa la fecha (dd/mm/yyyy): "
+        putStr ">>"
+        entryDateStr <- getLine
+        let date = parseDate entryDateStr
+
+        maybe (do
+            putStrLn "[Error]: El formato de la fecha es incorrecto."
+            loop) return date
+  loop -- start the first iteration
+
+-- Obtiene el rango de fecha de reservacion y los valida.
+-- Retorna una lista con las fechas de reservacion.
+getDateReservation :: IO [String]
+getDateReservation = do
+  let loop = do
+        entryDate <- getDate
+        departDate <- getDate
+
+        -- Verifica si la fecha inicial es mayor a la final
+        if entryDate > departDate
+          then do
+            putStrLn "[Error]: La fecha inicial debe ser menor a la fecha final."
+            loop
+          else return [show entryDate, show departDate]
+  loop
+
+-- Obtiene la cantidad de niños y adultos
+-- Retorna una lista con un string de la cantidad de adultos en la posicion 0 y los niños en la 1
+getNumAdultChild :: IO [String]
+getNumAdultChild = do
+  let loopAdult = do
+        putStr "\nCantidad de adultos: "
+        numAdults <- getLine
+        if not (isInt numAdults)
+          then do
+            putStrLn "[Error]: Lo ingresado no es un número entero."
+            loopAdult
+          else return numAdults
+
+  let loopChild = do
+        putStr "\nCantidad de niños: "
+        numChildren <- getLine
+        if not (isInt numChildren)
+          then do
+            putStrLn "[Error]: Lo ingresado no es un número entero."
+            loopChild
+          else return numChildren
+  numadult <- loopAdult
+  numChild <- loopChild
+  return [numadult, numChild]
+
+-- Obtiene el tipo de habitación, la cantidad de adultos y niños huespedes
+getNumAdChRoomType :: IO [String] -- Retorna una lista de strings con el input de los datos.
+getNumAdChRoomType = do
+  -- Loop que verifica si el tipo de habitación es válido
+  let loopRoom = do
+      printFile  "./BD/Rooms.csv"
+      putStr "\nSeleccione el id de la habitacion: "
+      inputInt
+
+  -- Loop que verifica si es número
+  let loopNumAdult = do
+      putStr "\nCantidad de huéspedes adultos: "
+      inputInt
+
+  -- Loop que verifica si es número
+  let loopNumChild = do
+      putStr "\nCantidad de huéspedes niños: "
+      inputInt
+  roomType <- loopRoom
+  numAdult <- loopNumAdult
+  numChild <- loopNumChild
+  file <- getFileData "./BD/Rooms.csv"
+  let roomIndex = read roomType ::Int
+  let roomData = file!!roomIndex
+  return (roomData ++ [numAdult, numChild])
+
+saveReservation ::
+  [String] -> --Lista de strings
+  IO () --Guarda los datos de reservación en un csv
+saveReservation reservationData = do
+  reservHistory <- getFileData "./BD/Reservation.csv"
+  let lastId = head (last reservHistory)
+  if not (isInt lastId)
+    then addLineCsv "./BD/Reservation.csv" ("0" : reservationData)
+    else do
+      let id = (read lastId :: Int) + 1
+      addLineCsv "./BD/Reservation.csv" (show id : reservationData)
+
+-- Imprime el recibo
+receipt :: [String] -- ^ Lista con la fecha de inicio y de salida
+  -> [String] -- ^ Cantidad de niños y adultos
+  -> IO ()
+receipt dateRange numAdultChild = do
+  let header = ["id reserva","nombre de quien reserva","fecha de reservacion","fecha ingreso","fecha salida", "cantidad adultos","cantidad de ninos","total"]
+  printRow header
+
+  file <- noHeaderData "./BD/Reservation.csv"
+  let dataReserv = last file
+  let lastId = head dataReserv
+  currentTime <- getCurrentTime
+
+  let entryDay = fromJust (parseDateCsv (head dateRange))
+  let departDay = fromJust (parseDateCsv (last dateRange))
+
+  adultPrice <- getAdultPrice entryDay departDay 0
+  childPrice <- getAdultPrice entryDay departDay 0
+  let numAdult = read (head numAdultChild) :: Int
+  let numChild = read (last numAdultChild) :: Int
+  let total = numAdult*adultPrice + numChild * childPrice
+
+  let receiptData = [lastId]++[dataReserv!!1]++[show currentTime]++dateRange++numAdultChild++[show total]
+  printRow receiptData
+
+
+reservation :: IO ()
+reservation = do
+  putStrLn "\t\tReservación"
+
+  dateRange <- getDateReservation --Obtiene la fecha de ingreso y salida
+  numAdultChild <- getNumAdultChild--Obtiene el número de niños y adultos
+  let numAdult = read (head numAdultChild) :: Int --Cantidad de niños
+  let numChild = read (numAdultChild !! 1) :: Int --Cantidad de adultos
+
+  putStr "Nombre de quien reserva: "
+  name <- getLine
+
+  roomTypeData <- getNumAdChRoomType
+  let roomId = head roomTypeData
+  let numAdultGuest = read (roomTypeData !! 2) :: Int
+  let numChildGuest = read (roomTypeData !! 3) :: Int
+
+  -- Verifica si el total de huéspedes suma el total de adultos y niños.
+  let numChildAdults = numAdult + numChild
+  let numChildAdultsGuests = numAdultGuest + numChildGuest
+  when (numChildAdults /= numChildAdultsGuests && numChildAdults > 0) $
+    do
+      putStrLn "El número de huéspedes y niños no es el mismo que la cantidad de adultos y niños o no son mayores a 0"
+      reservation
+  let receiptData = [name] ++ dateRange ++ numAdultChild ++ [roomId]
+  saveReservation (roomTypeData++[name] ++ dateRange++["Activo"])
+  receipt dateRange numAdultChild
+
+cancelReservation :: IO ()
+cancelReservation = putStrLn "Cancelar reservación"
+
+invoiceReservation :: IO ()
+invoiceReservation = putStrLn "Facturar reservación"
+
+menuGeneral :: IO ()
+menuGeneral = do
+  putStrLn "\t\tOpciones Generales"
+  putStrLn "1- Reservación"
+  putStrLn "2- Cancelar reservación"
+  putStrLn "3- Facturar reservación"
+  putStrLn "4- Salir"
+  putStr ">>"
+  option <- getLine
+  case option of
+    "1" -> reservation
+    "2" -> cancelReservation
+    "3" -> invoiceReservation
+    "4" -> return ()
+    _ -> putStrLn "[ERROR]: La opción elegida no es válida"
+  Control.Monad.when (option /= "4") menuGeneral
+
+module Includes.Calc (
+    getRateList,
+    getAdultPrice,
+    getChildPrice
+) where
+import Includes.Date(isHighSeason,isWeekend)
+import Includes.File(noHeaderData)
+import Data.Time
+
+--Retorna el precio por día de adulto
+getAdultPrice :: Day -- ^ la fecha de entrada
+  -> Day -- ^ la fecha de salida
+  -> Int -- ^ El precio a retornar
+  -> IO Int
+getAdultPrice entryDate departDate price = do
+    rateList <-getRateList entryDate
+    let rate = head rateList
+    if entryDate == departDate
+        then  case price of 
+                0-> return rate
+                _-> return price
+    else getAdultPrice (addDays 1 entryDate) departDate (price+rate)
+
+-- Retorna el precio por día de niño
+getChildPrice :: Day -- ^ La fecha de entrada
+  -> Day -- ^ La fecha de salida
+  -> Int -- ^ EL precio que se retornará
+  -> IO Int
+getChildPrice entryDate departDate price = do
+    rateList <-getRateList entryDate
+    let rate = last rateList
+    if entryDate == departDate
+        then  case price of 
+                0-> return rate
+                _-> return price
+    else getAdultPrice (addDays 1 entryDate) departDate (price+rate)
+
+-- Obtiene una lista con los precios de adultos y niños según el día [adulto,niño]
+getRateList :: Day -- ^ La fecha
+  -> IO [Int]
+getRateList date = do
+    file <-noHeaderData "./BD/Rates.csv"
+    if not(isHighSeason date)
+        then do
+            if not (isWeekend date)
+                then do
+                    let adultPrice1 = read (last(head file)) :: Int
+                    let childPrice2 = read (last(file!!1)) :: Int
+                    return[adultPrice1,childPrice2]
+            else do
+                let adultPrice3 =  read (last(file!!2)) :: Int
+                let childPrice4 =  read (last(file!!3)) :: Int
+                return [adultPrice3,childPrice4]
+    else
+        if not (isWeekend date)
+            then
+                do
+                let adultPrice5 = read (last(file!!4)) :: Int
+                let childPrice6 = read (last(file!!5)) :: Int
+                return[adultPrice5,childPrice6]
+        else do
+            let adultPrice7 = read (last(file!!6)) :: Int
+            let childPrice8 = read (last(file!!7)) :: Int
+            return [adultPrice7,childPrice8]
+
+module Includes.Date
+  ( parseDate,
+    isHighSeason,
+    getDateTuple,
+    isWeekend,
+    parseDateCsv
+  )
+where
+
+import Data.Time (UniversalTime, defaultTimeLocale, parseTimeM, Day, toGregorian, dayOfWeek, DayOfWeek (Friday,Saturday,Sunday))
+
+-- Convierte un string en una fecha 
+parseDate :: String -- ^ String con la fecha
+  -> Maybe Day --Retorna maybe si la fecha es valida, Nothing en caso contrario
+parseDate date = do
+  parseTimeM True defaultTimeLocale "%d/%m/%Y" date :: Maybe Day
+
+-- Convierte un string en una fecha 
+parseDateCsv :: String -- ^ String con la fecha
+  -> Maybe Day --Retorna maybe si la fecha es valida, Nothing en caso contrario
+parseDateCsv date = do
+  parseTimeM True defaultTimeLocale "%Y-%m-%d" date :: Maybe Day  
+
+-- Obtiene una tupla con los datos de la fecha
+getDateTuple :: Day -- ^ La fecha 
+  -> IO(Integer, Int, Int)
+getDateTuple date = return (toGregorian date)
+
+-- Verifica si el día de una fecha es fin de semana
+isWeekend :: Day -- ^ La fecha 
+  ->Bool --True si es fin de semana, False en caso contrario
+isWeekend date = do
+    let dayWeek = dayOfWeek date
+    case dayWeek of
+      Friday -> True
+      Saturday ->True
+      _ ->False
+
+-- Verifica si la fecha es temporada alta o baja
+isHighSeason :: Day -- ^ La fecha
+  ->Bool--True si es temporada alta, False en caso contrario
+isHighSeason date = do
+  let (year,month,day)=toGregorian date
+  not (month>=4 && month <=10)
+
+-- isHighSeason entryDate departDate = do 
+--   if 
+module Includes.File (
+  printFile,
+  fileToMatrix,
+  getFileLines,
+  getFileData,
+  writeCsv,
+  loadFile,
+  noHeaderData,
+  getHeaderData,
+  roomTypeRef,
+  readRoomTypePath,
+  newRoomTypePath,
+  printTablePos,
+  printRow,
+  addLineCsv
+) where
+import System.IO (withFile, IOMode (ReadMode), hGetContents)
+import System.IO.Unsafe (unsafePerformIO)
+import Data.List (sort,group)
+import Data.IORef
+
+-- Representación de variable global del
+-- tipo de cuarto.
+roomTypeRef :: IORef String
+roomTypeRef =
+  unsafePerformIO (newIORef "./BD/RoomType.csv")
+{-# NOINLINE roomTypeRef #-}
+
+-- Lee la variable global del tipo de cuarto
+readRoomTypePath :: IO String
+readRoomTypePath =
+  readIORef roomTypeRef
+
+-- Modifica el path del tipo de cuarto
+newRoomTypePath ::
+  String -> -- ^ Recibe un string con la ruta
+  IO ()
+newRoomTypePath path =
+  atomicModifyIORef' roomTypeRef (const (path, ()))
+
+rmdups :: (Ord a) => [a] -> [a]
+rmdups = map head . group . sort
+
+-- Carga una lista con los datos del archivo
+loadFile :: FilePath -- ^  La dirección de un archivo
+  -> IO [Char]
+loadFile filename = withFile filename ReadMode $ \handle -> do
+  theContent <- hGetContents handle
+  mapM return theContent
+
+-- Separa un string si es igual a un token
+wordsWhen :: (Char -> Bool) -- ^ Un booleano ej: (==',')
+  -> [Char] -- ^ El caracter delimitador
+  -> [[Char]]
+wordsWhen p s = case dropWhile p s of
+  "" -> []
+  s' -> w : wordsWhen p s''
+    where
+      (w, s'') = break p s'
+
+-- Función auxiliar que crea una matriz separando de los strings por coma
+fileToMatrixAux :: [[Char]] -- ^ Una lista de strings
+  -> [[[Char]]] -- ^ Lista vacía
+  -> [[[Char]]]
+fileToMatrixAux list newList = do
+  if null list
+    then newList
+    else fileToMatrixAux (init list) newList ++ [wordsWhen (== ',') (last list)]
+
+-- Convierte una lista de strings y las convierte en una matriz
+fileToMatrix :: [[Char]] -- ^ Una lista de tipo [[char]]
+  -> [[[Char]]] -- Una matriz de tipo [[[char]]]
+fileToMatrix list = do
+  if null list
+    then [[]]
+    else fileToMatrixAux list []
+
+-- Crea una lista de las lineas de un archivo
+getFileLines :: FilePath -- ^La dirección del archivo
+  -> IO [String] --Lista de las lineas del archivo
+getFileLines path = do
+  str <- loadFile path
+  return (lines str)
+
+-- Retorna una matriz de los datos del archivo
+getFileData :: FilePath -- ^ La ruta del archivo
+  -> IO [[[Char]]] -- Matriz de string 
+getFileData path = do
+  file <- getFileLines path
+  return (fileToMatrix file)
+
+-- Retorna el header del archivo csv
+getHeaderData :: FilePath -- ^ La ruta del archivo
+  -> IO [[Char]]
+getHeaderData path = do
+  dataFile<-getFileData path
+  return (head dataFile)
+
+-- Retorna los datos del csv sin los encabezados
+noHeaderData :: FilePath -- ^ La ruta del archivo
+  -> IO [[[Char]]]--Una matriz de string
+noHeaderData path =  do
+    dataFile<-getFileData path
+    return (tail dataFile)
+
+-- Imprime una lista 
+printRow :: [[Char]] -- Una lista de strings
+  -> IO () -- Printea la lista
+printRow row = do
+  if null row
+    then putStr "\n"
+    else
+      do
+      putStr $ head row ++ "\t"
+      printRow (tail row)
+
+-- Imprime una matriz
+printMatrixPos :: [[[Char]]] -- ^ Recibe una matriz de strings
+  -> Int
+  -> IO ()
+printMatrixPos matrix pos =
+  if null matrix
+    then putStr ""
+  else
+    do
+    let rowPos = show pos:head matrix
+    printRow rowPos
+    printMatrixPos (tail matrix) (pos+1)
+
+-- Imprime una matriz
+printMatrix :: [[[Char]]] -- ^ Recibe una matriz de strings
+  -> IO ()
+printMatrix matrix =
+  if null matrix
+    then putStr ""
+  else
+    do
+    printRow (head matrix)
+    printMatrix (tail matrix)
+
+-- Imprime un archivo
+printFile :: FilePath -- ^ la dirección de un archivo
+  -> IO ()
+printFile path = do
+  file <- getFileLines path
+  let dataFile = fileToMatrix file
+  printMatrix dataFile
+
+-- Imprime una lista con las posiciones
+printTablePos :: FilePath -- ^ La ruta dle archivo
+  -> IO ()
+printTablePos path = do
+  header <-getHeaderData path
+  let newHeader = "id" : header
+  dataFile <- noHeaderData path
+  printRow newHeader
+  printMatrixPos dataFile 0
+
+
+-- Convierte una lista a un string
+listToString :: [[Char]] -- ^ lista de string
+  -> [Char]
+listToString list
+  | null list = return '\n'
+  | length list == 1 = head list++listToString (tail list)
+  | otherwise = head list++","++listToString (tail list)
+
+-- Añada una nueva linea a un archivo csv
+addLineCsv :: FilePath -- ^ la dirección del archivo
+  -> [[Char]] -- ^ Una lista de strings a escribir en un csv
+  -> IO ()
+addLineCsv path newData = do
+  let dataFileStr = listToString newData
+  appendFile path dataFileStr
+
+-- Convierte una matriz a string
+matrixToString :: [[[Char]]] -- Una matriz de strings 
+  -> [Char]
+matrixToString matrix = do
+    if null matrix then
+      ""
+    else listToString (head matrix) ++ matrixToString (tail matrix)
+
+-- Elimina todo el contenido de un archivo y agrega nueva información
+writeCsv :: FilePath -- ^ La ruta del archivo
+  -> [[[Char]]] -- ^ lista de strings a escribir en el archivo
+  -> IO ()
+writeCsv path newData = do
+  let newDataStr = matrixToString newData
+  writeFile path newDataStr
